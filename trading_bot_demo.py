@@ -7,6 +7,7 @@ import logging
 
 import okx.MarketData as MarketData
 import pandas as pd
+import numpy as np
 import schedule
 
 from SignalFactory import MAOverlap, RSICrossover
@@ -31,7 +32,20 @@ def list_to_df(data):
     return data
 
 
+def combine_signals(signals):
+    sum_s = sum(signals)
+    long_thresh = len(signals) * 10 / 2
+    short_thresh = len(signals) * -10 / 2
+    if sum_s >= long_thresh:
+        return 1
+    elif sum_s <= short_thresh:
+        return -1
+    return 0
+
+
 signal_generators = []
+ma_sgs = []
+rsi_sgs = []
 
 logging.info("bot started")
 
@@ -46,6 +60,7 @@ for strategy in selected_params:
         for param in ast.literal_eval(selected_params[strategy]):
             sg.set_params(param)
             signal_generators.append(sg)
+            ma_sgs.append(sg)
         print("ma strategy loaded")
 
     if "rsi" == strategy:
@@ -53,6 +68,7 @@ for strategy in selected_params:
         for param in ast.literal_eval(selected_params[strategy]):
             sg.set_params(param)
             signal_generators.append(sg)
+            rsi_sgs.append(sg)
         print("rsi strategy loaded")
 
 print(f"loaded {len(signal_generators)} signal generators")
@@ -86,14 +102,30 @@ def job():
     fetch_data()
 
     final_signals = []
+    final_ma_signals = []
+    final_rsi_signals = []
 
     for sg in signal_generators:
         signal = sg.generate_signals(data_dict[sg.interval])[-1]
         logging.info(f" signal: {signal} " + str(sg))
         final_signals.append(signal)
+    
+    for sg in ma_sgs:
+        signal = sg.generate_signals(data_dict[sg.interval])[-1]
+        final_ma_signals.append(signal)
+    ma_output = combine_signals(final_ma_signals)
+    logging.info(f"combined ma signals: {ma_output}")
+    
+    for sg in rsi_sgs:
+        signal = sg.generate_signals(data_dict[sg.interval])[-1]
+        final_rsi_signals.append(signal)
+    rsi_output = combine_signals(final_rsi_signals)
+    logging.info(f"combined rsi signals: {rsi_output}")
 
     print(time.ctime())
     print(f"final signals: {final_signals}")
+    print(f"combined ma signal: {ma_output}")
+    print(f"combined rsi signal: {ma_output}")
 
 
 schedule.every(1).minute.do(job)

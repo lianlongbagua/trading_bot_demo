@@ -7,11 +7,11 @@ import logging
 
 import okx.MarketData as MarketData
 import pandas as pd
-import numpy as np
 import schedule
+import requests
 
-from SignalFactory import MAOverlap, RSICrossover
 from DataHandling import Contract
+from SignalFactory import *
 
 
 logging.basicConfig(
@@ -43,51 +43,34 @@ def combine_signals(signals):
     return 0
 
 
-signal_generators = []
-ma_sgs = []
-rsi_sgs = []
-
-logging.info("bot started")
-
-print("loading selected params")
-with open("selected_params.toml") as f:
-    selected_params = toml.load(f)["selected_params"]
+def load_signal_generators(strategy_name):
+    signal_generators = []
+    for param in ast.literal_eval(selected_params[strategy_name]):
+        sg = eval(strategy_name+"()")
+        sg.set_params(param)
+        signal_generators.append(sg)
+    return signal_generators
 
 
-for strategy in selected_params:
-    if "ma" == strategy:
-        sg = MAOverlap()
-        for param in ast.literal_eval(selected_params[strategy]):
-            sg.set_params(param)
-            signal_generators.append(sg)
-            ma_sgs.append(sg)
-        print("ma strategy loaded")
-
-    if "rsi" == strategy:
-        sg = RSICrossover()
-        for param in ast.literal_eval(selected_params[strategy]):
-            sg.set_params(param)
-            signal_generators.append(sg)
-            rsi_sgs.append(sg)
-        print("rsi strategy loaded")
-
-print(f"loaded {len(signal_generators)} signal generators")
+def push_to_device(title, content):
+    url = "https://api.day.app/sTc3n8MBtjjjftx5kYPBHg"
+    url = url + f"/{title}/{content}"
+    requests.post(url)
 
 
-instId = "BTC-USDT"
-marketDataAPI = MarketData.MarketAPI(debug="False")
-data_dict = {}
-
-
-def fetch_data():
-    global data_dict
-    intervals = ["1m", "3m", "5m", "15m", "30m", "1H"]
+def fetch_data(instrument_info):
+    instId = instrument_info['instId']
+    intervals = instrument_info['intervals']
+    limit = instrument_info['limit']
 
     print("fetching data")
+    
+    # for feeding data into data_dict
+    global data_dict
 
     for interval in intervals:
         raw_result = marketDataAPI.get_candlesticks(
-            instId=instId, bar=interval, limit=300
+            instId=instId, bar=interval, limit=limit
         )
 
         result_df = list_to_df(raw_result["data"])
@@ -98,43 +81,61 @@ def fetch_data():
         data_dict[interval] = contract
 
 
+logging.info("bot started")
+
+print("loading strategies")
+with open("config.toml") as f:
+    config = toml.load(f)
+
+selected_params = config["selected_params"]
+instrument_info = config["instrument_info"]
+
+instId = instrument_info['instId']
+marketDataAPI = MarketData.MarketAPI(debug="False")
+data_dict = {}
+
+signal_generators = []
+
+# Dict for storing strategies (MAOverlap, RSICrossover, etc..)
+strategies = {}
+
+
+# load all available strategies
+for strategy in selected_params:
+    strategies[strategy] = load_signal_generators(strategy)
+    print(f"{len(strategies[strategy])} {strategy} strategies loaded")
+
+
 def job():
-    fetch_data()
-
-    final_signals = []
-    final_ma_signals = []
-    final_rsi_signals = []
-
-    for sg in signal_generators:
-        signal = sg.generate_signals(data_dict[sg.interval])[-1]
-        logging.info(f" signal: {signal} " + str(sg))
-        final_signals.append(signal)
+    fetch_data(instrument_info)
     
-    for sg in ma_sgs:
-        signal = sg.generate_signals(data_dict[sg.interval])[-1]
-        final_ma_signals.append(signal)
-    ma_output = combine_signals(final_ma_signals)
-    logging.info(f"combined ma signals: {ma_output}")
-    
-    for sg in rsi_sgs:
-        signal = sg.generate_signals(data_dict[sg.interval])[-1]
-        final_rsi_signals.append(signal)
-    rsi_output = combine_signals(final_rsi_signals)
-    logging.info(f"combined rsi signals: {rsi_output}")
+    for strategy in strategies:
+        final_signals = []
 
-    print(time.ctime())
-    print(f"final signals: {final_signals}")
-    print(f"combined ma signal: {ma_output}")
-    print(f"combined rsi signal: {ma_output}")
+        for sg in strategies[strategy]:
+            signal = sg.generate_signals(data_dict[sg.interval])[-1]
+            logging.info(f"signal: {signal} from {sg}")
+            final_signals.append(signal)
 
+        output = combine_signals(final_signals)
 
-schedule.every(1).minute.do(job)
+        logging.info(f"{strategy} total signals: {final_signals}")
 
+        msg = f"final combined {strategy} signal: {output}"
 
-print("starting job")
-job()
+        print(msg)
+        logging.info(msg)
 
-# Keep the script running
-while True:
-    schedule.run_pending()
-    time.sleep(1)
+        if output:
+            push_to_device("signal generated", f"final combined {strategy} signal: {output}")
+
+if __name__ == "__main__":
+    schedule.every(1).minute.do(job)
+
+    print("starting job")
+    job()
+
+    # Keep the script running
+    while True:
+        schedule.run_pending()
+        time.sleep(1)

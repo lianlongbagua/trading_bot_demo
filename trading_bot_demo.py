@@ -84,7 +84,7 @@ def fetch_data(instrument_info):
 logging.info("bot started")
 
 print("loading strategies")
-with open("config.toml") as f:
+with open("bot_config.toml") as f:
     config = toml.load(f)
 
 selected_params = config["selected_params"]

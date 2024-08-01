@@ -4,6 +4,9 @@ import ast
 import time
 import toml
 import logging
+from functools import wraps
+import httpx
+import random
 
 import okx.MarketData as MarketData
 import pandas as pd
@@ -17,6 +20,27 @@ from SignalFactory import *
 logging.basicConfig(
     filename="signals.log", level=logging.INFO, format="%(asctime)s - %(message)s"
 )
+
+
+# Retry decorator with exponential backoff
+def retry_with_backoff(retries=3, backoff_in_seconds=1):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            x = 0
+            while True:
+                try:
+                    return func(*args, **kwargs)
+                except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.HTTPStatusError, requests.RequestException) as e:
+                    if x == retries:
+                        logging.error(f"All retries failed: {str(e)}")
+                        raise
+                    sleep = backoff_in_seconds * 2 ** x + random.uniform(0, 1)
+                    logging.warning(f"Attempt {x + 1} failed: {str(e)}. Retrying in {sleep:.2f} seconds")
+                    time.sleep(sleep)
+                    x += 1
+        return wrapper
+    return decorator
 
 
 def list_to_df(data):
@@ -45,7 +69,7 @@ def combine_signals(signals):
 
 def load_signal_generators(strategy_name):
     signal_generators = []
-    for param in ast.literal_eval(selected_params[strategy_name]):
+    for param in selected_params[strategy_name]:
         sg = eval(strategy_name+"()")
         sg.set_params(param)
         signal_generators.append(sg)
@@ -58,6 +82,7 @@ def push_to_device(title, content):
     requests.post(url)
 
 
+@retry_with_backoff(retries=3, backoff_in_seconds=1)
 def fetch_data(instrument_info):
     instId = instrument_info['instId']
     intervals = instrument_info['intervals']
@@ -69,16 +94,20 @@ def fetch_data(instrument_info):
     global data_dict
 
     for interval in intervals:
-        raw_result = marketDataAPI.get_candlesticks(
-            instId=instId, bar=interval, limit=limit
-        )
+        try:
+            raw_result = marketDataAPI.get_candlesticks(
+                instId=instId, bar=interval, limit=limit
+            )
 
-        result_df = list_to_df(raw_result["data"])
-        result_df.attrs["symbol"] = instId
+            result_df = list_to_df(raw_result["data"])
+            result_df.attrs["symbol"] = instId
 
-        contract = Contract.from_dataframe(result_df)
+            contract = Contract.from_dataframe(result_df)
 
-        data_dict[interval] = contract
+            data_dict[interval] = contract
+        except:
+            logging.error(f"Error fetching data for interval {interval}: {str(e)}")
+            raise
 
 
 logging.info("bot started")
@@ -107,27 +136,32 @@ for strategy in selected_params:
 
 
 def job():
-    fetch_data(instrument_info)
-    
-    for strategy in strategies:
-        final_signals = []
+    try:
+        fetch_data(instrument_info)
+        
+        for strategy in strategies:
+            final_signals = []
 
-        for sg in strategies[strategy]:
-            signal = sg.generate_signals(data_dict[sg.interval])[-1]
-            logging.info(f"signal: {signal} from {sg}")
-            final_signals.append(signal)
+            for sg in strategies[strategy]:
+                signal = sg.generate_signals(data_dict[sg.interval])[-1]
+                logging.info(f"signal: {signal} from {sg}")
+                final_signals.append(signal)
 
-        output = combine_signals(final_signals)
+            output = combine_signals(final_signals)
 
-        logging.info(f"{strategy} total signals: {final_signals}")
+            logging.info(f"{strategy} total signals: {final_signals}")
 
-        msg = f"final combined {strategy} signal: {output}"
+            msg = f"final combined {strategy} signal: {output}"
 
-        print(msg)
-        logging.info(msg)
+            print(msg)
+            logging.info(msg)
 
-        if output:
-            push_to_device("signal generated", f"final combined {strategy} signal: {output}")
+            if output:
+                push_to_device("signal generated", f"final combined {strategy} signal: {output}")
+    except Exception as e:
+        logging.error(f"Error in job execution: {str(e)}")
+        push_to_device("ERROR OCCURRED", str(e))
+
 
 if __name__ == "__main__":
     schedule.every(1).minute.do(job)
@@ -137,5 +171,9 @@ if __name__ == "__main__":
 
     # Keep the script running
     while True:
-        schedule.run_pending()
-        time.sleep(1)
+        try:
+            schedule.run_pending()
+            time.sleep(1)
+        except Exception as e:
+            logging.error(f"Error in main loop: {str(e)}")
+            time.sleep(30)

@@ -1,6 +1,6 @@
 #### Next steps on improving code
 
-- unit tests
+- unit tests (not that important + not urgent) pass
 - Async
 - dependency injection
 - task queue system like celery

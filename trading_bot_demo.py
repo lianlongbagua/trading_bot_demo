@@ -11,7 +11,7 @@ import schedule
 import requests
 
 from Core.datas import Contract
-from Core.custom_factors import MAOverlap, RSICrossover
+from Core.custom_factors import *
 from Core import utils
 
 

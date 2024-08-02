@@ -106,25 +106,3 @@ def combine_signals(signals):
     elif sum_s <= short_thresh:
         return -1
     return 0
-
-
-# def load_strategies(config, key):
-#     strategies = {}
-#     selected_params = config[key]
-#     for strategy in selected_params:
-#         signal_generators = []
-#         for param in selected_params[strategy]:
-#             sg = eval(strategy + "()")
-#             sg.set_params(param)
-#             signal_generators.append(sg)
-#         strategies[strategy] = signal_generators
-#         print(f"{len(strategies[strategy])} {strategy} strategies loaded")
-#     return strategies
-
-
-# def load_signal_generators(config, strategy):
-#     signal_generators = []
-#     for param in config[strategy]:
-#         sg = eval(strategy + "()")
-#         sg.set_params(param)
-#         signal_generators.append(sg)

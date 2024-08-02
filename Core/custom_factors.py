@@ -1,7 +1,7 @@
 import talib as ta
 import numpy as np
 
-from DataHandling import Contract
+from .datas import Contract
 from .signal_generator import SignalGenerator
 
 

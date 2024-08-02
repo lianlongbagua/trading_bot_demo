@@ -5,8 +5,8 @@ import numpy as np
 from numba import njit
 from joblib import dump
 
-from DataHandling import Contract
-from Utilities import interpolate
+from .datas import Contract
+from .utils import interpolate
 
 
 class SignalGenerator(ABC):

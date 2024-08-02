@@ -1,26 +1,23 @@
 #!/usr/bin/env python3
 
-import ast
 import time
-import toml
 import logging
 from functools import wraps
 import httpx
 import random
 
 import okx.MarketData as MarketData
-import pandas as pd
 import schedule
 import requests
 
-from DataHandling import Contract
-from SignalFactory import *
+from Core.datas import Contract
+from Core.custom_factors import MAOverlap, RSICrossover
+from Core import utils
 
 
 logging.basicConfig(
     filename="signals.log", level=logging.INFO, format="%(asctime)s - %(message)s"
 )
-
 
 # Retry decorator with exponential backoff
 def retry_with_backoff(retries=3, backoff_in_seconds=1):
@@ -43,45 +40,6 @@ def retry_with_backoff(retries=3, backoff_in_seconds=1):
     return decorator
 
 
-def list_to_df(data):
-    data = pd.DataFrame(
-        data,
-        columns=["time", "open", "high", "low", "close", "volume", "n1", "n2", "n3"],
-    )
-    data = data.drop(columns=["n1", "n2", "n3"])
-    data = data.astype(float)
-    data["time"] = pd.to_datetime(data["time"], unit="ms")
-    data.set_index("time", inplace=True)
-    data = data[::-1]
-    return data
-
-
-def combine_signals(signals):
-    sum_s = sum(signals)
-    long_thresh = len(signals) * 10 / 2
-    short_thresh = len(signals) * -10 / 2
-    if sum_s >= long_thresh:
-        return 1
-    elif sum_s <= short_thresh:
-        return -1
-    return 0
-
-
-def load_signal_generators(strategy_name):
-    signal_generators = []
-    for param in selected_params[strategy_name]:
-        sg = eval(strategy_name+"()")
-        sg.set_params(param)
-        signal_generators.append(sg)
-    return signal_generators
-
-
-def push_to_device(title, content):
-    url = "https://api.day.app/sTc3n8MBtjjjftx5kYPBHg"
-    url = url + f"/{title}/{content}"
-    requests.post(url)
-
-
 @retry_with_backoff(retries=3, backoff_in_seconds=1)
 def fetch_data(instrument_info):
     instId = instrument_info['instId']
@@ -99,7 +57,7 @@ def fetch_data(instrument_info):
                 instId=instId, bar=interval, limit=limit
             )
 
-            result_df = list_to_df(raw_result["data"])
+            result_df = utils.list_to_df(raw_result["data"])
             result_df.attrs["symbol"] = instId
 
             contract = Contract.from_dataframe(result_df)
@@ -113,26 +71,29 @@ def fetch_data(instrument_info):
 logging.info("bot started")
 
 print("loading strategies")
-with open("bot_config.toml") as f:
-    config = toml.load(f)
+config = utils.load_configs("bot_config.toml")
 
 selected_params = config["selected_params"]
 instrument_info = config["instrument_info"]
-
 instId = instrument_info['instId']
 marketDataAPI = MarketData.MarketAPI(debug="False")
+push_url = config["push_url"]
 data_dict = {}
-
-signal_generators = []
 
 # Dict for storing strategies (MAOverlap, RSICrossover, etc..)
 strategies = {}
 
-
 # load all available strategies
 for strategy in selected_params:
-    strategies[strategy] = load_signal_generators(strategy)
+    signal_generators = []
+    for param in selected_params[strategy]:
+        sg = eval(strategy + "()")
+        sg.set_params(param)
+        signal_generators.append(sg)
+    strategies[strategy] = signal_generators
     print(f"{len(strategies[strategy])} {strategy} strategies loaded")
+
+# strategies = utils.load_strategies(config, "selected_params")
 
 
 def job():
@@ -147,7 +108,7 @@ def job():
                 logging.info(f"signal: {signal} from {sg}")
                 final_signals.append(signal)
 
-            output = combine_signals(final_signals)
+            output = utils.combine_signals(final_signals)
 
             logging.info(f"{strategy} total signals: {final_signals}")
 
@@ -157,10 +118,10 @@ def job():
             logging.info(msg)
 
             if output:
-                push_to_device("signal generated", f"final combined {strategy} signal: {output}")
+                utils.push_to_device(push_url, "signal generated", f"final combined {strategy} signal: {output}")
     except Exception as e:
         logging.error(f"Error in job execution: {str(e)}")
-        push_to_device("ERROR OCCURRED", str(e))
+        utils.push_to_device(push_url, "ERROR OCCURRED", str(e))
 
 
 if __name__ == "__main__":

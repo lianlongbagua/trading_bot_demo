@@ -46,6 +46,9 @@ def write_to_toml(file_name, entry_key, content):
 
 
 def append_to_toml(file_name, entry_key, content):
+    """
+    this updates the entire key with the new content
+    """
     try:
         with open(file_name, "r") as f:
             data = toml.load(f)

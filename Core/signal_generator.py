@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 
-import talib as ta
 import numpy as np
 from numba import njit
 from joblib import dump
@@ -81,10 +80,6 @@ class SignalGenerator(ABC):
     @property
     def strategy_kind(self):
         return self._strategy_kind
-
-    @property
-    def true_range(self):
-        return self._true_range
 
     @property
     def interval(self):
@@ -242,69 +237,6 @@ class SignalGenerator(ABC):
             diff[diff < 0] = -1
             diff[diff > 0] = 0
         return diff
-
-    @staticmethod
-    def step_func(arr, decay_factor, init_strength):
-        mask = arr != 0
-        idx = np.where(mask, np.arange(len(mask))[::-1], 0).astype(np.double)
-        mins = ta.MIN(np.pad(idx, decay_factor), decay_factor)[
-            decay_factor:-decay_factor
-        ]
-        backward_fill = np.nan_to_num(
-            np.concatenate(
-                [
-                    ta.MAX(mins, decay_factor)[decay_factor - 1 :],
-                    np.zeros(decay_factor - 1),
-                ]
-            )
-        )
-        delta = idx - backward_fill
-        delta[np.nonzero(delta)] += 1
-
-        return np.round(delta * (init_strength / decay_factor))
-
-    def apply_decay(self, signals, step=True, init_strength=10):
-        """
-        Apply decay to signals.
-
-        Parameters:
-            signals (numpy.ndarray): The signals to apply decay to.
-            decay_factor (int): The decay factor.
-            step (bool): Whether to apply step_func decay.
-            init_strength (int): The initial strength of the signals.
-
-        Returns:
-            numpy.ndarray: The decayed signals.
-        """
-        decay_factor = self.decay_factor
-        mode = self.mode
-
-        if decay_factor <= 1:
-            return signals * init_strength
-
-        signals = SignalGenerator.discretize_signals(signals, mode)
-
-        pos_s = (signals == 1).astype(np.double) * init_strength
-        neg_s = (signals == -1).astype(np.double) * init_strength
-
-        decayed_pos_s = ta.MAX(np.pad(pos_s, decay_factor), decay_factor)[
-            decay_factor:-decay_factor
-        ]
-        decayed_neg_s = ta.MAX(np.pad(neg_s, decay_factor), decay_factor)[
-            decay_factor:-decay_factor
-        ]
-
-        if step:
-            decayed_pos_s = SignalGenerator.step_func(
-                decayed_pos_s, decay_factor, init_strength
-            )
-            decayed_neg_s = SignalGenerator.step_func(
-                decayed_neg_s, decay_factor, init_strength
-            )
-
-        decayed_signals = decayed_pos_s - decayed_neg_s
-
-        return decayed_signals
 
 
 class SignalVoter(SignalGenerator):

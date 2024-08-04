@@ -73,7 +73,7 @@ logging.info("bot started")
 print("loading strategies")
 config = utils.load_configs("bot_config.toml")
 
-selected_params = config["selected_params"]
+strategy_configs = config["strategies"]
 instrument_info = config["instrument_info"]
 instId = instrument_info['instId']
 marketDataAPI = MarketData.MarketAPI(debug="False")
@@ -84,9 +84,9 @@ data_dict = {}
 strategies = {}
 
 # load all available strategies
-for strategy in selected_params:
+for strategy in strategy_configs:
     signal_generators = []
-    for param in selected_params[strategy]:
+    for param in strategy_configs[strategy]:
         sg = eval(strategy + "()")
         sg.set_params(param)
         signal_generators.append(sg)

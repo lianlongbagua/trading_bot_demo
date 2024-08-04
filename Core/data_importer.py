@@ -27,4 +27,5 @@ def import_from_arctic(symbol, date_range, library="vnpy_futures", laptop=False)
 
 def import_from_csv(filepath):
     data = pd.read_csv(filepath, index_col="datetime", parse_dates=True)
+    data.attrs["symbol"] = filepath.split("/")[-1].split(".")[0]
     return data

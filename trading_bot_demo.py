@@ -11,13 +11,14 @@ import schedule
 import requests
 
 from Core.datas import Contract
-from Core.custom_factors import *
+from Core.custom_factors import *  # noqa
 from Core import utils
 
 
 logging.basicConfig(
     filename="signals.log", level=logging.INFO, format="%(asctime)s - %(message)s"
 )
+
 
 # Retry decorator with exponential backoff
 def retry_with_backoff(retries=3, backoff_in_seconds=1):
@@ -28,26 +29,35 @@ def retry_with_backoff(retries=3, backoff_in_seconds=1):
             while True:
                 try:
                     return func(*args, **kwargs)
-                except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.HTTPStatusError, requests.RequestException) as e:
+                except (
+                    httpx.ReadTimeout,
+                    httpx.ConnectTimeout,
+                    httpx.HTTPStatusError,
+                    requests.RequestException,
+                ) as e:
                     if x == retries:
                         logging.error(f"All retries failed: {str(e)}")
                         raise
-                    sleep = backoff_in_seconds * 2 ** x + random.uniform(0, 1)
-                    logging.warning(f"Attempt {x + 1} failed: {str(e)}. Retrying in {sleep:.2f} seconds")
+                    sleep = backoff_in_seconds * 2**x + random.uniform(0, 1)
+                    logging.warning(
+                        f"Attempt {x + 1} failed: {str(e)}. Retrying in {sleep:.2f} seconds"
+                    )
                     time.sleep(sleep)
                     x += 1
+
         return wrapper
+
     return decorator
 
 
 @retry_with_backoff(retries=3, backoff_in_seconds=1)
 def fetch_data(instrument_info):
-    instId = instrument_info['instId']
-    intervals = instrument_info['intervals']
-    limit = instrument_info['limit']
+    instId = instrument_info["instId"]
+    intervals = instrument_info["intervals"]
+    limit = instrument_info["limit"]
 
     print("fetching data")
-    
+
     # for feeding data into data_dict
     global data_dict
 
@@ -63,7 +73,7 @@ def fetch_data(instrument_info):
             contract = Contract.from_dataframe(result_df)
 
             data_dict[interval] = contract
-        except:
+        except Exception as e:
             logging.error(f"Error fetching data for interval {interval}: {str(e)}")
             raise
 
@@ -75,7 +85,7 @@ config = utils.load_configs("bot_config.toml")
 
 strategy_configs = config["strategies"]
 instrument_info = config["instrument_info"]
-instId = instrument_info['instId']
+instId = instrument_info["instId"]
 marketDataAPI = MarketData.MarketAPI(debug="False")
 push_url = config["push_url"]
 data_dict = {}
@@ -99,7 +109,7 @@ for strategy in strategy_configs:
 def job():
     try:
         fetch_data(instrument_info)
-        
+
         for strategy in strategies:
             final_signals = []
 
@@ -118,7 +128,11 @@ def job():
             logging.info(msg)
 
             if output:
-                utils.push_to_device(push_url, "signal generated", f"final combined {strategy} signal: {output}")
+                utils.push_to_device(
+                    push_url,
+                    "signal generated",
+                    f"final combined {strategy} signal: {output}",
+                )
     except Exception as e:
         logging.error(f"Error in job execution: {str(e)}")
         utils.push_to_device(push_url, "ERROR OCCURRED", str(e))

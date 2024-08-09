@@ -21,10 +21,20 @@ def setup_logging(log_file="async_app.log"):
     )
     file_handler.setFormatter(formatter)
 
-    # Root logger
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
+    # Set logging level for httpx
+    logging.getLogger("httpx").setLevel(logging.CRITICAL)
 
-    return logger
+    return console_handler, file_handler
+
+
+class LoggedClass:
+    def __init__(self, name):
+        self.logger = logging.getLogger(name)
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = False
+
+        # Only add handlers if they don't exist
+        if not self.logger.handlers:
+            console_handler, file_handler = setup_logging()
+            self.logger.addHandler(console_handler)
+            self.logger.addHandler(file_handler)

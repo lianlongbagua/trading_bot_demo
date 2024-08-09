@@ -100,12 +100,8 @@ def push_to_device(url, title, content):
     requests.post(url)
 
 
-def combine_signals(signals):
-    sum_s = sum(signals)
-    long_thresh = len(signals) * 10 / 2
-    short_thresh = len(signals) * -10 / 2
-    if sum_s >= long_thresh:
-        return 1
-    elif sum_s <= short_thresh:
-        return -1
-    return 0
+def sum_signals(signals):
+    """
+    sum signals from multiple signal generators
+    """
+    return sum(signals) / len(signals)

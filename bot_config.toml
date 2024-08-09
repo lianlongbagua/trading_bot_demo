@@ -1,8 +1,10 @@
 push_url = "https://api.day.app/sTc3n8MBtjjjftx5kYPBHg"
 
+gateway = "OKX"
+
 [instrument_info]
 instId = "BTC-USDT"
-intervals = ["5m", "30m", "1H",]
+bars = ["5m", "30m", "1H",]
 limit = 300
 
 [strategies]

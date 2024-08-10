@@ -1,9 +1,10 @@
+#!/usr/bin/env python3
+
 import asyncio
 import time
 from datetime import datetime, timezone
 from typing import Dict, Any, List
 import os
-import pprint
 
 import schedule
 from dotenv import load_dotenv
@@ -84,7 +85,7 @@ class SignalManager(LoggedClass):
         if not self.is_data_complete(contracts, instId):
             self.logger.warning("Data incomplete, skipping signal generation")
             self.all_signals = {}
-            pass
+            return
 
         for strategy_name, signal_generators in self.strategies.items():
             strategy_signals = []
@@ -112,7 +113,7 @@ class SignalManager(LoggedClass):
         self.generate_signals(contracts, instId)
 
         if not self.all_signals:
-            pass
+            return
 
         all_signals = []
         for strategy_signals in self.all_signals.values():

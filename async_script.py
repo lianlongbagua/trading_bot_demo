@@ -115,15 +115,11 @@ async def main(instrument_info):
 
 
 if __name__ == "__main__":
-    try:
-        load_dotenv()
-        config = utils.load_configs("bot_config.toml")
-        instrument_info = config["instrument_info"]
-        marketDataAPI = MarketData.MarketAPI(debug=False)
-        push_url = os.environ.get("PUSH_URL")
+    load_dotenv()
+    config = utils.load_configs("bot_config.toml")
+    instrument_info = config["instrument_info"]
+    marketDataAPI = MarketData.MarketAPI(debug=False)
+    push_url = os.environ.get("PUSH_URL")
 
-        utils.push_to_device(push_url, "Application status", "started")
-        asyncio.run(main(instrument_info))
-    except Exception as e:
-        logger.critical(f"Application failed to start: {str(e)}")
-        utils.push_to_device(push_url, "Application failed to start", "Error")
+    utils.push_to_device(push_url, "Application status", "started")
+    asyncio.run(main(instrument_info))

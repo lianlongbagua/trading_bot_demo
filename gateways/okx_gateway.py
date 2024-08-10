@@ -34,7 +34,7 @@ class OKXGateway(BaseGateway):
             # )
             return result
         except Exception as e:
-            self.logger.error(
+            self.logger.warning(
                 f"Failed to fetch {bar} candles for {instId} - {str(e)} - retrying..."
             )
             raise
@@ -56,9 +56,6 @@ class OKXGateway(BaseGateway):
         df = await asyncio.to_thread(utils.list_to_df, data["data"])
         df.attrs["symbol"] = data["instId"]
         contract = await asyncio.to_thread(Contract.from_dataframe, df)
-        # self.logger.info(
-        #     f"Processed {len(contract)} candles for {data['bar']} timeframe"
-        # )
         return contract
 
     async def process_multiple(self, data: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:

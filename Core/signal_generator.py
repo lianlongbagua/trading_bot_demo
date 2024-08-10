@@ -56,7 +56,7 @@ class SignalGenerator(ABC):
         Returns:
             list: The parameters of the signal generator.
         """
-        return vars(self)
+        return [v for k, v in vars(self).items() if not k.startswith("_")]
 
     def set_params(self, params, return_self=False):
         """

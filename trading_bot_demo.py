@@ -71,6 +71,7 @@ def fetch_data(instrument_info):
             result_df.attrs["symbol"] = instId
 
             contract = Contract.from_dataframe(result_df)
+            print(contract.datetime[-5:])
 
             data_dict[interval] = contract
         except Exception as e:
@@ -86,7 +87,7 @@ config = utils.load_configs("bot_config.toml")
 strategy_configs = config["strategies"]
 instrument_info = config["instrument_info"]
 instId = instrument_info["instId"]
-marketDataAPI = MarketData.MarketAPI(debug="False")
+marketDataAPI = MarketData.MarketAPI(debug=False)
 push_url = config["push_url"]
 data_dict = {}
 
@@ -103,8 +104,6 @@ for strategy in strategy_configs:
     strategies[strategy] = signal_generators
     print(f"{len(strategies[strategy])} {strategy} strategies loaded")
 
-# strategies = utils.load_strategies(config, "selected_params")
-
 
 def job():
     try:
@@ -120,19 +119,7 @@ def job():
 
             output = utils.combine_signals(final_signals)
 
-            logging.info(f"{strategy} total signals: {final_signals}")
-
-            msg = f"final combined {strategy} signal: {output}"
-
-            print(msg)
-            logging.info(msg)
-
-            if output:
-                utils.push_to_device(
-                    push_url,
-                    "signal generated",
-                    f"final combined {strategy} signal: {output}",
-                )
+            # logging.info(f"{strategy} total signals: {final_signals}")
     except Exception as e:
         logging.error(f"Error in job execution: {str(e)}")
         utils.push_to_device(push_url, "ERROR OCCURRED", str(e))

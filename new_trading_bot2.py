@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List
 import os
+import time
 
 from dotenv import load_dotenv
 import numpy as np
@@ -78,9 +79,9 @@ class SignalManager(LoggedClass):
                     tasks.append(self._gen_signal(sg, contract))
 
         signals = await asyncio.gather(*tasks)
-        final_signal = self.combine_signals(signals)
-        signal_changed = self.signal_has_changed(final_signal)
-        self.final_signal = final_signal
+        new_signal = self.combine_signals(signals)
+        signal_changed = self.signal_has_changed(new_signal)
+        self.final_signal = new_signal
         self.logger.info(f"Final Signal: {self.final_signal}")
         return self.final_signal, signal_changed
 
@@ -181,6 +182,8 @@ class TradingSystem(LoggedClass):
             push_to_device(self.push_url, "Trading Bot", f"Signal: {final_signal}")
             self.logger.warning(f"Signal strength changed to {final_signal}")
 
+        time.sleep(1)
+
     async def run(self):
         # run once immediately
         self.logger.info("Starting main loop")
@@ -189,7 +192,7 @@ class TradingSystem(LoggedClass):
 
         while True:
             now_seconds = datetime.now(timezone.utc).second
-            sleep_seconds = (20 - now_seconds) & 60
+            sleep_seconds = (20 - now_seconds) % 60
             await asyncio.sleep(sleep_seconds)
             await self.job()
 

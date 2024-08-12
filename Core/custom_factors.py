@@ -96,6 +96,9 @@ class RSICrossover(SignalGenerator):
         if self.detrend_N > 1:
             detrend_arr = ta.LINEARREG(data.close, timeperiod=self.detrend_N)
             detrended_close = data.close - detrend_arr
+            detrended_close = np.nan_to_num(detrended_close)
+            # patch for talib for numbers too small
+            detrended_close *= 10000
             rsi_arr = ta.RSI(detrended_close, timeperiod=self.N)
         else:
             rsi_arr = data.rsi(self.N)

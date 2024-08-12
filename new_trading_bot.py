@@ -18,6 +18,8 @@ from Core import utils
 from Core.logger import LoggedClass
 
 
+# convention: each strategy gets its own key
+
 class SignalManager(LoggedClass):
     def __init__(self, strategy_configs: Dict[str, List[Dict[str, Any]]]):
         super().__init__(__name__)
@@ -57,10 +59,10 @@ class SignalManager(LoggedClass):
     def load_strategies(
         self, strategy_configs: Dict[str, List[Dict[str, Any]]]
     ) -> Dict[str, List[SignalGenerator]]:
-        strategies = {}
+        strategies = []
 
         for strategy_name, params_list in strategy_configs.items():
-            signal_generators = []
+            signal_generators = {}
             for params in params_list:
                 sg = eval(strategy_name + "()")
                 sg.set_params(params)
@@ -91,11 +93,9 @@ class SignalManager(LoggedClass):
             strategy_signals = []
             for sg in signal_generators:
                 contract_key = f"{instId}_{sg.interval}"
-                signal = sg.generate_signals(contracts[contract_key])[-1]
+                signal_series = sg.generate_signals(contracts[contract_key])
+                signal = signal_series[-1]
                 strategy_signals.append(signal)
-                self.logger.info(
-                    f"{sg.get_params()} - Signal: {signal} for {contract_key}"
-                )
 
             combined_signal = self.combine_signals(strategy_signals)
             self.all_signals[strategy_name] = {

@@ -1,5 +1,3 @@
-push_url = "https://api.day.app/sTc3n8MBtjjjftx5kYPBHg"
-
 gateway = "OKX"
 
 [instrument_info]

@@ -7,6 +7,7 @@ from Core.logger import LoggedClass
 class BaseGateway(LoggedClass, ABC):
     def __init__(self):
         super().__init__(__name__)
+        self.logger.info(f"Initializing {self.__class__.__name__} gateway")
 
     @abstractmethod
     async def fetch(self) -> Dict[str, Any]:

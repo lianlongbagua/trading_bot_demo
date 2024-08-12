@@ -14,9 +14,6 @@ class OKXGateway(BaseGateway):
         super().__init__()
         self.market_api = MarketData.MarketAPI(debug=False)
 
-    def get_logger(self):
-        return self.logger
-
     @retry(
         wait=wait_random_exponential(multiplier=1),
     )
@@ -28,10 +25,7 @@ class OKXGateway(BaseGateway):
                 bar=bar,
                 limit=limit,
             )
-            result.update({"instId": instId, "bar": bar})
-            # self.logger.info(
-            #     f"Fetched {len(result['data'])} candles for {bar} timeframe"
-            # )
+            result.update({"instId": instId, "bar": bar, "limit": limit})
             return result
         except Exception as e:
             self.logger.warning(
@@ -39,30 +33,19 @@ class OKXGateway(BaseGateway):
             )
             raise
 
-    async def fetch_multiple(
-        self, instId: str, bars: List[str], limit: int
-    ) -> Dict[str, Dict[str, Any]]:
-        tasks = [self.fetch(instId, bar, limit) for bar in bars]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        return {
-            instId + "_" + bar: result
-            for bar, result in zip(bars, results)
-            if not isinstance(result, Exception)
-        }
-
-    @retry(wait=wait_random_exponential(multiplier=1, min=1, max=10))
     async def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
         # Wrap the processing in an asynchronous function
         df = await asyncio.to_thread(utils.list_to_df, data["data"])
         df.attrs["symbol"] = data["instId"]
         contract = await asyncio.to_thread(Contract.from_dataframe, df)
+        if len(contract) != data["limit"]:
+            self.logger.error(
+                f"Data length for {data['instId']} is not {data['limit']}"
+            )
         return contract
 
-    async def process_multiple(self, data: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-        tasks = [self.process(data) for data in data.values()]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        return {
-            data["instId"] + "_" + data["bar"]: result
-            for data, result in zip(data.values(), results)
-            if not isinstance(result, Exception)
-        }
+    async def fetch_and_process(
+        self, instId: str, bar_interval: str, limit: int
+    ) -> Dict[str, Any]:
+        data = await self.fetch(instId, bar_interval, limit)
+        return await self.process(data)

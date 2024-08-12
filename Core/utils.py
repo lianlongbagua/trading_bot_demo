@@ -95,11 +95,6 @@ def load_configs(config_file):
     return config
 
 
-def push_to_device(url, title, content):
-    url = url + f"/{title}/{content}"
-    requests.post(url)
-
-
 def sum_signals(signals):
     """
     sum signals from multiple signal generators

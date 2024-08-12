@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 
 
-def setup_logging(log_file="async_app.log"):
+def setup_logging(log_file="trading_app.log"):
     class UTCFormatter(logging.Formatter):
         def formatTime(self, record, datefmt=None):
             dt = datetime.fromtimestamp(record.created, tz=timezone.utc)

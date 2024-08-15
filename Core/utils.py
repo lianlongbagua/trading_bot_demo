@@ -2,7 +2,6 @@ import numpy as np
 from numba import njit
 import toml
 import pandas as pd
-import requests
 
 
 @njit

@@ -1,5 +1,10 @@
 gateway = "OKX"
 
+[risk_info]
+max_risk = 100
+bar_interval = "1H"
+atr_pediod = 12
+
 [instrument_info]
 instId = "BTC-USDT"
 bars = ["5m", "30m", "1H",]

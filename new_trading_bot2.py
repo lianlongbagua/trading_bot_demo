@@ -48,10 +48,12 @@ class SignalManager(LoggedClass):
         strategy_dict = {}
         for sg in strategies:
             resample_key = sg.resample
+
             if resample_key == 60:
                 resample_key = "1H"
             else:
                 resample_key = f"{resample_key}m"
+
             if resample_key not in strategy_dict:
                 strategy_dict[resample_key] = []
             strategy_dict[resample_key].append(sg)
@@ -89,6 +91,10 @@ class SignalManager(LoggedClass):
         return new_signal != self.final_signal
 
 
+def calculate_pos_size(max_risk, atr, signal_strength):
+    return max_risk / (atr * signal_strength)
+
+
 def push_to_device(url, title, content):
     # small clever recursion
     if isinstance(url, list):
@@ -114,6 +120,9 @@ class TradingSystem(LoggedClass):
         self.strategy_configs = self.configs["strategies"]
         self.signal_manager = SignalManager(self.strategy_configs)
 
+        self.risk_info = self.configs["risk_info"]
+        self.pos_size = None
+
         load_dotenv()
         self.push_url = os.environ.get("PUSH_URL")
 
@@ -132,6 +141,19 @@ class TradingSystem(LoggedClass):
             instId, bar_interval, limit
         )
         self.contracts[bar_interval] = polled_contract
+
+        try:
+            if bar_interval == self.risk_info["bar_interval"]:
+                atr = polled_contract.atr(int(self.risk_info["bar_interval"][:-1]))[-1]
+                signal_strength = self.signal_manager.final_signal
+                if self.first_run:
+                    signal_strength = 1
+                self.pos_size = calculate_pos_size(
+                    self.risk_info["max_risk"], atr, signal_strength
+                )
+                self.logger.info(f"Position Size: {self.pos_size}")
+        except Exception as e:
+            self.logger.error(f"Failed to calculate position size: {str(e)}")
 
         if not self.is_data_complete(polled_contract) and not self.first_run:
             self.logger.warning(f"Data for {bar_interval} is incomplete, retrying...")

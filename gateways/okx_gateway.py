@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from okx import MarketData
 from tenacity import retry, wait_random_exponential

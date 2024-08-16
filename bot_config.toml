@@ -1,6 +1,7 @@
 gateway = "OKX"
 
 [risk_info]
+# Max risk allowed unit in USD
 max_risk = 100
 bar_interval = "1H"
 atr_pediod = 12

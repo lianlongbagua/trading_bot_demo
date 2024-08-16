@@ -201,7 +201,7 @@ class TradingSystem(LoggedClass):
         self.first_run = False
 
         if has_changed:
-            push_to_device(self.push_url, "Trading Bot", f"Signal: {final_signal}")
+            push_to_device(self.push_url, "Trading Bot", f"Signal: {final_signal}, Position Size: ${self.pos_size}")
             self.logger.warning(f"Signal strength changed to {final_signal}")
 
         time.sleep(1)

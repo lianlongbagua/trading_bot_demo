@@ -1,14 +1,17 @@
 gateway = "OKX"
 
-[risk_info]
+[risk]
 # Max risk allowed unit in USD
 max_risk = 100
-bar_interval = "1H"
-atr_pediod = 12
+bar_interval = 60
+atr_period = 12
 
-[instrument_info]
+[instrument]
+# The price on which pnl & position is calculated
+markPxId = "BTC-USDT-SWAP"
+# The actual instrument to be traded
 instId = "BTC-USDT"
-bars = ["5m", "30m", "1H",]
+bars = [5, 30, 60]
 limit = 300
 
 [strategies]

@@ -76,11 +76,27 @@ def read_from_toml(file_name, entry_key):
 
 
 def list_to_df(data):
-    data = pd.DataFrame(
-        data,
-        columns=["time", "open", "high", "low", "close", "volume", "n1", "n2", "n3"],
-    )
-    data = data.drop(columns=["n1", "n2", "n3"])
+    try:
+        data = pd.DataFrame(
+            data,
+            columns=[
+                "time",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "n1",
+                "n2",
+                "n3",
+            ],
+        )
+        data = data.drop(["n1", "n2", "n3"], axis=1)
+    except Exception:
+        data = pd.DataFrame(
+            data,
+            columns=["time", "open", "high", "low", "close", "volume"],
+        )
     data = data.astype(float)
     data["time"] = pd.to_datetime(data["time"], unit="ms")
     data.set_index("time", inplace=True)

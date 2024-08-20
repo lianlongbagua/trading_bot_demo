@@ -7,6 +7,7 @@ from tenacity import retry, wait_random_exponential
 
 from Core import utils
 from Core.datas import Contract
+from trader.objects import parse_position_data
 from .base import BaseGateway
 
 
@@ -56,9 +57,9 @@ class OKXGateway(BaseGateway):
     @retry(
         wait=wait_random_exponential(multiplier=1),
     )
-    def get_account_balance(self, ccy: str = "USDT") -> Dict[str, Any]:
+    def get_account_balance(self, **kwargs) -> Dict[str, Any]:
         try:
-            return self.account_api.get_account_balance(ccy)
+            return self.account_api.get_account_balance(**kwargs)
         except Exception as e:
             self.logger.warning(
                 f"Failed to fetch account balance - {str(e)} - retrying..."
@@ -74,6 +75,19 @@ class OKXGateway(BaseGateway):
         except Exception as e:
             self.logger.warning(
                 f"Failed to fetch account position risk - {str(e)} - retrying..."
+            )
+            raise
+
+    @retry(
+        wait=wait_random_exponential(multiplier=1),
+    )
+    async def get_positions(self, **kwargs) -> Dict[str, Any]:
+        try:
+            result = await asyncio.to_thread(self.account_api.get_positions, **kwargs)
+            return parse_position_data(result)
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to fetch account positions - {str(e)} - retrying..."
             )
             raise
 
@@ -100,15 +114,13 @@ class OKXGateway(BaseGateway):
     @retry(
         wait=wait_random_exponential(multiplier=1),
     )
-    def get_mark_price(
-        self, instId: str = "", instType: str = "SWAP"
-    ) -> Dict[str, Any]:
+    async def get_mark_price(self, **kwargs) -> float:
         try:
-            result = self.public_api.get_mark_price(instType=instType, instId=instId)
+            result = await asyncio.to_thread(self.public_api.get_mark_price, **kwargs)
             return float(result["data"][0]["markPx"])
         except Exception as e:
             self.logger.warning(
-                f"Failed to fetch mark price for {instId} - {str(e)} - retrying..."
+                f"Failed to fetch mark price for {kwargs.get('instId')} - {str(e)} - retrying..."
             )
             raise
 

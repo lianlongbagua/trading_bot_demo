@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict
 
-from Core.logger import LoggedClass
+from trader.logger import LoggedClass
 
 
 class BaseGateway(LoggedClass, ABC):

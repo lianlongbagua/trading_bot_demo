@@ -1,11 +1,11 @@
 import talib as ta
 import numpy as np
 
-from .datas import Contract
-from .signal_generator import SignalGenerator
+from trader.objects import Contract
+from .base import TradeSignalGenerator
 
 
-class MAOverlap(SignalGenerator):
+class MAOverlap(TradeSignalGenerator):
     """
     A signal generator that generates signals based on moving average crossover strategy.
 
@@ -60,7 +60,7 @@ class MAOverlap(SignalGenerator):
         return s
 
 
-class RSICrossover(SignalGenerator):
+class RSICrossover(TradeSignalGenerator):
     def __init__(
         self,
         N: int = None,

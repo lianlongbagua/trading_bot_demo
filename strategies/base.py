@@ -4,16 +4,37 @@ import numpy as np
 from numba import njit
 from joblib import dump
 
-from .datas import Contract
-from .utils import interpolate
+from trader.objects import Contract
 
 
-class SignalGenerator(ABC):
+@njit
+def interpolate(s, datalen):
+    """
+    interpolate signal to match data length
+    normal interpolation won't work because it will
+    involve future data
+    """
+    s_interpolated = np.zeros(datalen)
+    factor = datalen // len(s)
+    s_interpolated[: factor * len(s)] = np.repeat(s, factor)
+    s_interpolated = np.roll(s_interpolated, factor)
+    s_interpolated[:factor] = 0
+    return s_interpolated
+
+
+def signed_log(x):
+    """
+    apply log while preserving sign
+    """
+    return np.sign(x) * np.log(np.abs(x) + 1)
+
+
+class TradeSignalGenerator(ABC):
     """
     Abstract base class for signal generators.
 
     This class defines the interface for all signal generators. Each signal generator
-    must implement the `generate_signals` method, which takes an OHLCV data frame and
+    must implement the `generate_signals` method, which takes an OHLCV dataframe and
     returns a series of trading signals.
     """
 
@@ -22,17 +43,6 @@ class SignalGenerator(ABC):
 
     @abstractmethod
     def generate_signals(self, **kwargs):
-        """
-        Generate trading signals based on the given OHLCV data.
-
-        Args:
-            ohlcv (OHLCV): The OHLCV data.
-            descretize (bool, optional): Whether to descretize the signals. Defaults to False.
-            decay_factor (int, optional): The decay factor for the signals. Defaults to None.
-
-        Returns:
-            numpy.ndarray: The generated signals.
-        """
         pass
 
     @abstractmethod
@@ -201,7 +211,7 @@ class SignalGenerator(ABC):
         idx = np.roll(idx, 1) & ~idx
         idx[0] = 0
         s[idx] = 1
-        s = SignalGenerator.ffill(s)
+        s = TradeSignalGenerator.ffill(s)
         if reversed:
             s = -s
         return s
@@ -239,7 +249,7 @@ class SignalGenerator(ABC):
         return diff
 
 
-class SignalVoter(SignalGenerator):
+class SignalVoter(TradeSignalGenerator):
     """
     A signal generator that generates signals based on voting of multiple signal generators.
 
@@ -260,7 +270,9 @@ class SignalVoter(SignalGenerator):
         return f"SignalVoter with {len(self.signal_generators)} signal generators"
 
     def validate_params(self):
-        return all([isinstance(sg, SignalGenerator) for sg in self.signal_generators])
+        return all(
+            [isinstance(sg, TradeSignalGenerator) for sg in self.signal_generators]
+        )
 
     def process_sg(sg, data):
         if sg.resample > 1:

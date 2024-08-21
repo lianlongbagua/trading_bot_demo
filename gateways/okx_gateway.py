@@ -5,9 +5,8 @@ import os
 from okx import MarketData, PublicData, Account, Trade
 from tenacity import retry, wait_random_exponential
 
-from Core import utils
-from Core.datas import Contract
-from trader.objects import parse_position_data
+from trader import utils
+from trader.objects import parse_position_data, Contract
 from .base import BaseGateway
 
 
@@ -26,23 +25,15 @@ fgtc2okx = {v: k for k, v in okx2fgtc.items()}
 class OKXGateway(BaseGateway):
     def __init__(self):
         super().__init__()
+        self.credentials = {
+            "api_key": os.environ.get("apikey"),
+            "api_secret_key": os.environ.get("secretkey"),
+            "passphrase": os.environ.get("passphrase"),
+        }
+        self.account_api = Account.AccountAPI(**self.credentials, debug=False)
+        self.trade_api = Trade.TradeAPI(**self.credentials, debug=False)
         self.market_api = MarketData.MarketAPI(debug=False)
         self.public_api = PublicData.PublicAPI(debug=False)
-        self.apikey = os.environ.get("apikey")
-        self.secretkey = os.environ.get("secretkey")
-        self.passphrase = os.environ.get("passphrase")
-        self.account_api = Account.AccountAPI(
-            api_key=self.apikey,
-            api_secret_key=self.secretkey,
-            passphrase=self.passphrase,
-            debug=False,
-        )
-        self.trade_api = Trade.TradeAPI(
-            api_key=self.apikey,
-            api_secret_key=self.secretkey,
-            passphrase=self.passphrase,
-            debug=False,
-        )
 
     def get_account_config(self) -> Dict[str, Any]:
         return self.account_api.get_account_config()
@@ -91,23 +82,21 @@ class OKXGateway(BaseGateway):
             )
             raise
 
-    def set_leverage(self, instId: str, lever: str, mgnMode: str) -> Dict[str, Any]:
+    def set_leverage(self, **kwargs) -> Dict[str, Any]:
         try:
-            return self.account_api.set_leverage(
-                instId=instId, lever=lever, mgnMode=mgnMode
-            )
+            return self.account_api.set_leverage(**kwargs)
         except Exception as e:
             self.logger.warning(
-                f"Failed to set leverage for {instId} - {str(e)} - retrying..."
+                f"Failed to set leverage for {kwargs.get('instId')} - {str(e)} - retrying..."
             )
             raise
 
-    def get_leverage(self, instId: str, mgnMode: str) -> Dict[str, Any]:
+    def get_leverage(self, **kwargs) -> Dict[str, Any]:
         try:
-            return self.account_api.get_leverage(instId=instId, mgnMode=mgnMode)
+            return self.account_api.get_leverage(**kwargs)
         except Exception as e:
             self.logger.warning(
-                f"Failed to get leverage for {instId} - {str(e)} - retrying..."
+                f"Failed to get leverage for {kwargs.get('instId')} - {str(e)} - retrying..."
             )
             raise
 

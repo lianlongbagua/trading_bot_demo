@@ -1,15 +1,15 @@
 from pprint import pprint
-
+import asyncio
 from dotenv import load_dotenv
 
 from gateways import OKXGateway
-from trader.objects import parse_position_data
+# from trader.objects import parse_position_data
 
 load_dotenv()
 gateway = OKXGateway()
 
 # output = gateway.get_account_position_risk()
-# output = gateway.get_positions(instId="BTC-USDT-SWAP")
+output = asyncio.run(gateway.get_positions(instId="BTC-USDT-SWAP"))
 # output = gateway.get_account_balance()
 # output = gateway.get_mark_price(instId="BTC-USDT-SWAP")
 # output = gateway.set_leverage(instId="BTC-USDT-SWAP", lever="100", mgnMode="isolated")
@@ -22,5 +22,5 @@ gateway = OKXGateway()
 #     sz="100",
 # )
 # output = gateway.get_account_config()
-# pprint(output[0])
-print(bool(""))
+# output = gateway.get_account_balance()
+pprint(output)

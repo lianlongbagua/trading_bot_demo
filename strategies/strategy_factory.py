@@ -1,4 +1,4 @@
-from .custom_factors import MAOverlap, RSICrossover
+from .fg_strategies import MAOverlap, RSICrossover
 
 
 strategy_classes = {

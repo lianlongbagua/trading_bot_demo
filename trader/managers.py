@@ -13,7 +13,7 @@ class DataManager(LoggedClass):
         super().__init__(__name__)
         self.instrument = configs["instrument"]
         self.contracts = {
-            bar_interval: None for bar_interval in self.instrument["bars"]
+            bar_interval: None for bar_interval in self.instrument["bar_intervals"]
         }
 
         self.gateway = gateway
@@ -23,15 +23,21 @@ class DataManager(LoggedClass):
     async def update_current_posdata(self):
         # we just get the first one assuming there's only one position
         self.current_posdata = await self.gateway.get_positions(
-            instId=self.instrument["markId"],
-            instType=self.instrument["instType"],
+            instId=self.instrument["symbol"],
+            instType=self.instrument["inst_type"],
+        )
+
+    async def update_mark_price(self):
+        self.mark_price = await self.gateway.get_mark_price(
+            instId=self.instrument["symbol"],
+            instType=self.instrument["inst_type"],
         )
 
     @retry(wait=wait_random_exponential(multiplier=1))
     async def fetch_and_process_data(self, bar_interval: int) -> Dict[str, Any]:
         try:
-            instId = self.instrument["instId"]
-            limit = self.instrument["limit"]
+            instId = self.instrument["index_symbol"]
+            limit = self.instrument["bar_length"]
             polled_contract = await self.gateway.fetch_and_process(
                 instId, bar_interval, limit
             )
@@ -76,6 +82,7 @@ class DataManager(LoggedClass):
             for bar_interval in bar_intervals_to_fetch
         ]
         tasks.append(self.update_current_posdata())
+        tasks.append(self.update_mark_price())
         self.logger.info(f"Fetching data for {bar_intervals_to_fetch} minutes")
         return tasks
 
@@ -153,7 +160,7 @@ class PositionManager(LoggedClass):
     def __init__(self, config, gateway):
         """
         calculates risk based on ATR
-        position size = max_risk / ATR
+        position size = (max_risk * signalstrength) / (ATR * tol)
         returns position in units, not USD
         notional = position * price
         """
@@ -162,26 +169,21 @@ class PositionManager(LoggedClass):
         self.max_risk = risk_config["max_risk"]
         self.bar_interval = risk_config["bar_interval"]
         self.atr_period = risk_config["atr_period"]
-        self.markId = config["instrument"]["markId"]
-        self.instType = config["instrument"]["instType"]
+        self.symbol = config["instrument"]["symbol"]
+        self.instType = config["instrument"]["inst_type"]
         self.contract_size = config["instrument"]["contract_size"]
         self.tol = risk_config["tol"]
 
         self.target_pos = 0
         self.target_notional = 0
-        self.target_contracts = 0
+        self.target_qty = 0
         self.target_lever = 0
 
         self.gateway = gateway
 
-    def _get_current_pos(self):
-        pass
-
     def _get_target_pos(self, contracts, signal_strength):
         # size in BTC
-        atr = contracts[self.bar_interval].atr(self.atr_period)[-1]
-        # some tolerance
-        atr *= self.tol
+        atr = contracts[self.bar_interval].atr(self.atr_period)[-1] * self.tol
         self.target_pos = round((self.max_risk / atr) * signal_strength, 6)
 
     def _get_target_notional_size(self, mark_price):
@@ -190,7 +192,7 @@ class PositionManager(LoggedClass):
 
     def _get_target_contracts(self):
         # every contract is 0.001 BTC here
-        self.target_contracts = self.target_pos / self.contract_size
+        self.target_qty = self.target_pos / self.contract_size
 
     def _get_target_leverage(self):
         self.target_lever = int(self.target_notional / self.max_risk)
@@ -204,35 +206,47 @@ class PositionManager(LoggedClass):
         self._get_target_contracts()
 
     def _calc_diff(self, current_posdata):
+        if not current_posdata:
+            return self.target_lever, self.target_qty
         current_lever = int(current_posdata.lever) if current_posdata.lever else 0
-        current_pos_size = float(current_posdata.pos) if current_posdata.pos else 0.0
+        current_qty = float(current_posdata.qty) if current_posdata.qty else 0.0
         lever_diff = self.target_lever - int(current_lever)
-        pos_size_diff = self.target_contracts - float(current_pos_size)
-        return lever_diff, pos_size_diff
+        qty_diff = self.target_qty - float(current_qty)
+        return lever_diff, qty_diff
 
     def execute(self, contracts, signal_strength, mark_price, current_posdata):
         self._calc_target(contracts, signal_strength, mark_price)
-        # current_pos = self._get_current_pos()
-        lever_diff, contracts_diff = self._calc_diff(current_posdata)
+        lever_diff, qty_diff = self._calc_diff(current_posdata)
 
         if lever_diff:
             result = self.gateway.set_leverage(
-                instId=self.markId,
+                instId=self.symbol,
                 lever=str(self.target_lever),
                 mgnMode="isolated",
             )
-            print(result)
-            self.logger.warning(f"Set leverage to {self.target_lever}")
+            if result.get("code") != "0":
+                self.logger.error(f"Failed to set leverage - {result['data']['sMsg']}")
+            else:
+                self.logger.warning(f"Set leverage to {self.target_lever}")
 
-        if contracts_diff:
+        if abs(qty_diff) > 0.1:
             result = self.gateway.place_order(
-                instId=self.markId,
+                instId=self.symbol,
                 tdMode="isolated",
                 ordType="market",
-                side="buy" if contracts_diff > 0 else "sell",
-                sz=str(abs(round(contracts_diff, 1))),
+                side="buy" if qty_diff > 0 else "sell",
+                sz=str(abs(round(qty_diff, 1))),
             )
-            print(result)
-            self.logger.warning(
-                f"Placed order for {round(contracts_diff, 1)} contracts"
-            )
+            if result.get("code") != "0":
+                self.logger.error(f"Failed to place order - {result['data']['sMsg']}")
+            else:
+                self.logger.warning(f"Placed order for {round(qty_diff, 1)} contracts")
+
+        # if abs(self.target_notional) < abs(current_posdata.notionalUsd):
+        #     notional_diff = abs(current_posdata.notional) - abs(self.target_notional)
+        #     amt = round(notional_diff / , 1)
+        #     result = self.gateway.adjustment_margin(
+        #         instId=self.symbol, posSide="net", type="reduce", amt="100"
+        #     )
+        #     print(result)
+        #     self.logger.warning("Reduced margin")

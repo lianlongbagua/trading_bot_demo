@@ -5,18 +5,20 @@ gateway = "OKX"
 max_risk = 100
 bar_interval = 60
 atr_period = 12
-tol = 1.5
+tol = 2
 
 [instrument]
 # The price on which pnl & position is calculated
 # Also the instrument to be traded
-markId = "BTC-USDT-SWAP"
+symbol = "BTC-USDT-SWAP"
+
 # Because this we can fetch 300 bars at a time
 # In the future to change to a database system
-instId = "BTC-USDT"
-instType = "SWAP"
-bars = [5, 30, 60]
-limit = 300
+index_symbol = "BTC-USDT"
+
+inst_type = "SWAP"
+bar_intervals = [1, 3, 5, 15, 30, 60, 120, 240]
+bar_length = 300
 contract_size = 0.001
 
 

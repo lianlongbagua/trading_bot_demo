@@ -17,6 +17,8 @@ okx2fgtc = {
     "15m": 15,
     "30m": 30,
     "1H": 60,
+    "2H": 120,
+    "4H": 240,
 }
 
 fgtc2okx = {v: k for k, v in okx2fgtc.items()}
@@ -38,11 +40,26 @@ class OKXGateway(BaseGateway):
     def get_account_config(self) -> Dict[str, Any]:
         return self.account_api.get_account_config()
 
+    @retry(
+        wait=wait_random_exponential(multiplier=1),
+    )
     def place_order(self, **kwargs) -> Dict[str, Any]:
         try:
             return self.trade_api.place_order(**kwargs)
         except Exception as e:
             self.logger.warning(f"Failed to place order - {str(e)} - retrying...")
+            raise
+
+    @retry(
+        wait=wait_random_exponential(multiplier=1),
+    )
+    def adjust_margin(self, **kwargs) -> Dict[str, Any]:
+        try:
+            return self.account_api.adjustment_margin(**kwargs)
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to adjust margin for {kwargs.get('instId')} - {str(e)} - retrying..."
+            )
             raise
 
     @retry(

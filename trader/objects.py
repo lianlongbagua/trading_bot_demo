@@ -6,71 +6,36 @@ import talib as ta
 
 @dataclass
 class PositionData:
-    adl: str
-    availPos: str
-    avgPx: str
-    baseBal: str
-    baseBorrowed: str
-    baseInterest: str
-    bePx: str
-    bizRefId: str
-    bizRefType: str
-    cTime: str
-    ccy: str
-    clSpotInUseAmt: str
-    closeOrderAlgo: List[Any]
-    deltaBS: str
-    deltaPA: str
-    fee: str
-    fundingFee: str
-    gammaBS: str
-    gammaPA: str
-    idxPx: str
-    imr: str
-    instId: str
-    instType: str
-    interest: str
-    last: str
-    lever: str
-    liab: str
-    liabCcy: str
-    liqPenalty: str
-    liqPx: str
-    margin: str
-    markPx: str
-    maxSpotInUseAmt: str
-    mgnMode: str
-    mgnRatio: str
-    mmr: str
-    notionalUsd: str
-    optVal: str
-    pendingCloseOrdLiabVal: str
-    pnl: str
-    pos: str
-    posCcy: str
-    posId: str
-    posSide: str
-    quoteBal: str
-    quoteBorrowed: str
-    quoteInterest: str
-    realizedPnl: str
-    spotInUseAmt: str
-    spotInUseCcy: str
-    thetaBS: str
-    thetaPA: str
-    tradeId: str
-    uTime: str
-    upl: str
-    uplLastPx: str
-    uplRatio: str
-    uplRatioLastPx: str
-    usdPx: str
-    vegaBS: str
-    vegaPA: str
+    symbol: str
+    qty: float
+    side: str
+    average_price: float
+    lever: int
+    margin_mode: str
+    margin: float
+    notional: float
+    unrealized_pnl: float
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PositionData":
-        return cls(**data)
+        return cls(
+            symbol=data["instId"],
+            qty=float(data["pos"]),
+            side=data["posSide"],
+            average_price=round(float(data["avgPx"]), 2),
+            lever=int(data["lever"]),
+            margin_mode=data["mgnMode"],
+            margin=round(float(data["margin"]), 2),
+            notional=round(float(data["notionalUsd"]), 2),
+            unrealized_pnl=round(float(data["upl"]), 2),
+        )
+
+    def __repr__(self):
+        return (
+            f"symbol={self.symbol}, qty={self.qty}, side={self.side}, "
+            f"average_price={self.average_price}, lever={self.lever}, margin_mode={self.margin_mode}, "
+            f"margin={self.margin}, notional={self.notional}, unrealized_pnl={self.unrealized_pnl})"
+        )
 
 
 def parse_position_data(data_packet: Dict[str, Any]) -> List[PositionData]:

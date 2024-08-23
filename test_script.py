@@ -23,4 +23,7 @@ output = asyncio.run(gateway.get_positions(instId="BTC-USDT-SWAP"))
 # )
 # output = gateway.get_account_config()
 # output = gateway.get_account_balance()
+# output = gateway.adjustment_margin(
+#     instId="BTC-USDT-SWAP", posSide="net", type="reduce", amt="100"
+# )
 pprint(output)

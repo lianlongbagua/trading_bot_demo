@@ -104,7 +104,7 @@ class SignalManager(LoggedClass):
         strategy_len = sum(len(v) for v in self.strategy_dict.values())
         self.logger.info(f"Loaded {strategy_len} strategies")
 
-        self.final_signal = 0
+        self.final_signal = -0.1
 
     @staticmethod
     async def _load_sg(name, params):

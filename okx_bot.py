@@ -55,8 +55,8 @@ class TradingSystem(LoggedClass):
 
     async def confirm_pos(self):
         posdata = await self.gateway.get_positions(instId=self.instrument["symbol"])
+        posdata = posdata[0]
         if posdata:
-            posdata = posdata[0]
             self.logger.warning(f"Position: {posdata}")
             utils.push_to_device(
                 self.push_url,
@@ -66,6 +66,11 @@ class TradingSystem(LoggedClass):
             )
 
             self.pos_man.adjust_margin(posdata)
+        else:
+            self.logger.warning("no open position")
+            utils.push_to_device(
+                self.push_url, "OKX Bot Confirm Position", "no open position"
+            )
 
     def adjust_pos(self):
         utils.push_to_device(

@@ -35,83 +35,88 @@ class TradingSystem(LoggedClass):
 
         self.push_url = os.environ.get("PUSH_URL")
 
-        self.first_run = True
-
     def initialize_gateway(self) -> gateways.BaseGateway:
         gateway_type = self.configs.get("gateway")
         if gateway_type == "OKX":
             return gateways.OKXGateway()
 
+    async def confirm_order(self):
+        orderdata = await self.gateway.get_order(
+            instId=self.instrument["symbol"], ordId=self.pos_man.last_orderid
+        )
+        if orderdata:
+            orderdata = orderdata[0]
+            self.logger.warning(f"Order: {orderdata}")
+            utils.push_to_device(
+                self.push_url,
+                "OKX Bot Confirm Order",
+                f"{orderdata.order_status=}",
+            )
+
+    async def confirm_pos(self):
+        posdata = await self.gateway.get_positions(instId=self.instrument["symbol"])
+        if posdata:
+            posdata = posdata[0]
+            self.logger.warning(f"Position: {posdata}")
+            utils.push_to_device(
+                self.push_url,
+                "OKX Bot Confirm Position",
+                f"actual notional = {posdata.notional}, target = {round(self.pos_man.target_notional, 2)}, "
+                f"actual lever = {posdata.lever}, target = {self.pos_man.target_lever}",
+            )
+
+            self.pos_man.adjust_margin(posdata)
+
+    def adjust_pos(self):
+        utils.push_to_device(
+            self.push_url,
+            "OKX Bot New Signal",
+            f"{self.instrument['symbol']}:{self.sig_man.final_signal}",
+        )
+        self.logger.warning(f"NEW Sig: {self.sig_man.final_signal}")
+
+        self.pos_man.execute(
+            self.data_man.contracts,
+            self.sig_man.final_signal,
+            self.data_man.mark_price,
+            self.data_man.current_posdata,
+        )
+
     async def job(self):
         tasks = self.data_man.periodic_sync_tasks()
         await asyncio.gather(*tasks)
 
-        final_signal, has_changed = await self.sig_man.generate_signals(
-            self.data_man.contracts
-        )
-        self.first_run = False
+        signal_changed = await self.sig_man.generate_signals(self.data_man.contracts)
 
         # if signal has changed, execute
-        if has_changed:
-            try:
-                current_posdata = self.data_man.current_posdata[0]
-            except IndexError:
-                self.logger.warning("No current position data")
-                current_posdata = None
+        if signal_changed:
+            self.adjust_pos()
 
-            mark_price = self.data_man.mark_price
-
-            self.pos_man.execute(
-                self.data_man.contracts,
-                final_signal,
-                mark_price,
-                current_posdata,
-            )
-
-            target_notional = round(self.pos_man.target_notional, 2)
-            target_lever = self.pos_man.target_lever
-            utils.push_to_device(
-                self.push_url,
-                "OKX Bot New Signal",
-                f"Signal: {final_signal}, target notional: {target_notional}, target lever: {target_lever}",
-            )
-            self.logger.warning(
-                f"NEW Sig str: {final_signal}, target notional: {target_notional}, target lever: {target_lever}"
-            )
-
-            # confirm position
-            await asyncio.sleep(5)
-
-            posdata = await self.gateway.get_positions(instId=self.instrument["symbol"])
-
-            if posdata:
-                posdata = posdata[0]
-                notional_diff = round(
-                    (posdata.notional - target_notional) / target_notional, 2
-                )
-                lever_diff = posdata.lever - target_lever
-
-                self.logger.warning(f"Confirmation: {notional_diff=}, {lever_diff=}")
-
-                utils.push_to_device(
-                    self.push_url,
-                    "OKX Bot Confirm Position",
-                    f"Position: {posdata} \n {notional_diff=}, {lever_diff=}",
-                )
+            # confirm order has been filled
+            await asyncio.sleep(3)
+            await asyncio.gather(self.confirm_order(), self.confirm_pos())
 
         time.sleep(1)
 
     async def run(self):
-        # run once immediately
-        self.logger.info("Starting main loop")
-        utils.push_to_device(self.push_url, f"{self.configs['gateway']} Bot", "Started")
-        await self.job()
-
-        while True:
-            now_seconds = datetime.now(timezone.utc).second
-            sleep_seconds = (20 - now_seconds) % 60
-            await asyncio.sleep(sleep_seconds)
+        try:
+            # run once immediately
+            self.logger.info(f"Starting main loop trading {self.instrument['symbol']}")
+            utils.push_to_device(
+                self.push_url,
+                f"{self.configs['gateway']} Bot",
+                f"Start trading {self.instrument['symbol']}",
+            )
             await self.job()
+
+            while True:
+                now_seconds = datetime.now(timezone.utc).second
+                sleep_seconds = (20 - now_seconds) % 60
+                await asyncio.sleep(sleep_seconds)
+                await self.job()
+        except Exception as e:
+            self.logger.error(f"Error in main loop: {str(e)}")
+            utils.push_to_device(self.push_url, "OKX Bot Error", f"{str(e)}")
 
     def start(self):
         asyncio.run(self.run())

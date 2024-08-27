@@ -6,7 +6,7 @@ from okx import MarketData, PublicData, Account, Trade
 from tenacity import retry, wait_random_exponential
 
 from trader import utils
-from trader.objects import parse_position_data, Contract
+from trader.objects import parse_position_data, Contract, parse_order_data
 from .base import BaseGateway
 
 
@@ -127,6 +127,19 @@ class OKXGateway(BaseGateway):
         except Exception as e:
             self.logger.warning(
                 f"Failed to fetch mark price for {kwargs.get('instId')} - {str(e)} - retrying..."
+            )
+            raise
+
+    @retry(
+        wait=wait_random_exponential(multiplier=1),
+    )
+    async def get_order(self, **kwargs) -> Dict[str, Any]:
+        try:
+            result = await asyncio.to_thread(self.trade_api.get_order, **kwargs)
+            return parse_order_data(result)
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to fetch order for {kwargs.get('instId')} - {str(e)} - retrying..."
             )
             raise
 

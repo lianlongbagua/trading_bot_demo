@@ -18,11 +18,19 @@ class DataManager(LoggedClass):
 
         self.gateway = gateway
 
-        self.current_posdata = None
+        self._current_posdata = None
+
+    @property
+    def current_posdata(self):
+        try:
+            return self._current_posdata[0]
+        except IndexError:
+            self.logger.warning("No current pos data")
+            return None
 
     async def update_current_posdata(self):
         # we just get the first one assuming there's only one position
-        self.current_posdata = await self.gateway.get_positions(
+        self._current_posdata = await self.gateway.get_positions(
             instId=self.instrument["symbol"],
             instType=self.instrument["inst_type"],
         )
@@ -150,7 +158,7 @@ class SignalManager(LoggedClass):
         signal_changed = self.signal_has_changed(new_signal)
         self.final_signal = new_signal
         self.logger.info(f"Final Signal: {self.final_signal}")
-        return self.final_signal, signal_changed
+        return signal_changed
 
     def signal_has_changed(self, new_signal):
         return new_signal != self.final_signal
@@ -170,7 +178,7 @@ class PositionManager(LoggedClass):
         self.bar_interval = risk_config["bar_interval"]
         self.atr_period = risk_config["atr_period"]
         self.symbol = config["instrument"]["symbol"]
-        self.instType = config["instrument"]["inst_type"]
+        self.inst_type = config["instrument"]["inst_type"]
         self.contract_size = config["instrument"]["contract_size"]
         self.tol = risk_config["tol"]
 
@@ -180,6 +188,7 @@ class PositionManager(LoggedClass):
         self.target_lever = 0
 
         self.gateway = gateway
+        self.last_orderid = None
 
     def _get_target_pos(self, contracts, signal_strength):
         # size in BTC
@@ -214,6 +223,21 @@ class PositionManager(LoggedClass):
         qty_diff = self.target_qty - float(current_qty)
         return lever_diff, qty_diff
 
+    def adjust_margin(self, current_posdata):
+        margin = current_posdata.margin
+        if margin > self.max_risk * 1.5:
+            margin_diff = margin - self.max_risk * 1.5
+            amt = int(margin_diff)
+            result = self.gateway.adjust_margin(
+                instId=self.symbol, posSide="net", type="reduce", amt=str(amt)
+            )
+            if result.get("code") != "0":
+                self.logger.error(
+                    f"Failed to reduce margin by {amt} - {result['data'][0]['sMsg']}"
+                )
+            else:
+                self.logger.warning(f"Reduced margin by {amt}")
+
     def execute(self, contracts, signal_strength, mark_price, current_posdata):
         self._calc_target(contracts, signal_strength, mark_price)
         lever_diff, qty_diff = self._calc_diff(current_posdata)
@@ -224,12 +248,12 @@ class PositionManager(LoggedClass):
                 lever=str(self.target_lever),
                 mgnMode="isolated",
             )
-            if result.get("code") != "0":
-                self.logger.error(f"Failed to set leverage - {result['data']['sMsg']}")
-            else:
-                self.logger.warning(f"Set leverage to {self.target_lever}")
+            self.process_result(
+                result, "Failed to set leverage", f"Set leverage to {self.target_lever}"
+            )
 
         if abs(qty_diff) > 0.1:
+            sz = str(abs(round(qty_diff, 1)))
             result = self.gateway.place_order(
                 instId=self.symbol,
                 tdMode="isolated",
@@ -237,16 +261,15 @@ class PositionManager(LoggedClass):
                 side="buy" if qty_diff > 0 else "sell",
                 sz=str(abs(round(qty_diff, 1))),
             )
-            if result.get("code") != "0":
-                self.logger.error(f"Failed to place order - {result['data']['sMsg']}")
-            else:
-                self.logger.warning(f"Placed order for {round(qty_diff, 1)} contracts")
+            self.process_result(
+                result, "Failed to place order", f"Placed order for {sz}"
+            )
+            self.last_orderid = result["data"][0]["ordId"]
 
-        # if abs(self.target_notional) < abs(current_posdata.notionalUsd):
-        #     notional_diff = abs(current_posdata.notional) - abs(self.target_notional)
-        #     amt = round(notional_diff / , 1)
-        #     result = self.gateway.adjustment_margin(
-        #         instId=self.symbol, posSide="net", type="reduce", amt="100"
-        #     )
-        #     print(result)
-        #     self.logger.warning("Reduced margin")
+    def process_result(self, result, fail_msg, success_msg):
+        if result.get("code") != "0":
+            messages = [msg for msg in result["data"]]
+            for msg in messages:
+                self.logger.error(f"{fail_msg} - {msg['sMsg']}")
+        else:
+            self.logger.warning(success_msg)

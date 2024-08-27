@@ -5,6 +5,45 @@ import talib as ta
 
 
 @dataclass
+class OrderData:
+    symbol: str
+    side: str
+    fill_price: float
+    fill_time: str
+    qty: float
+    order_id: str
+    order_type: str
+    order_status: str
+    lever: int
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "OrderData":
+        return cls(
+            symbol=data["instId"],
+            side=data["side"],
+            fill_price=float(data["fillPx"]),
+            qty=float(data["sz"]),
+            order_id=data["ordId"],
+            order_type=data["ordType"],
+            order_status=data["state"],
+            lever=int(data["lever"]),
+            fill_time=data["fillTime"],
+        )
+
+    def __repr__(self):
+        return (
+            f"symbol={self.symbol}, side={self.side}, fill_price={self.fill_price}, qty={self.qty}, "
+            f"order_id={self.order_id}, order_type={self.order_type}, order_status={self.order_status}, "
+            f"lever={self.lever}, fill_time={self.fill_time}"
+        )
+
+
+def parse_order_data(data_packet: Dict[str, Any]) -> List[OrderData]:
+    orders = data_packet.get("data", [])
+    return [OrderData.from_dict(order) for order in orders]
+
+
+@dataclass
 class PositionData:
     symbol: str
     qty: float
@@ -18,17 +57,20 @@ class PositionData:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PositionData":
-        return cls(
-            symbol=data["instId"],
-            qty=float(data["pos"]),
-            side=data["posSide"],
-            average_price=round(float(data["avgPx"]), 2),
-            lever=int(data["lever"]),
-            margin_mode=data["mgnMode"],
-            margin=round(float(data["margin"]), 2),
-            notional=round(float(data["notionalUsd"]), 2),
-            unrealized_pnl=round(float(data["upl"]), 2),
-        )
+        try:
+            return cls(
+                symbol=data["instId"],
+                qty=float(data["pos"]),
+                side=data["posSide"],
+                average_price=round(float(data["avgPx"]), 2),
+                lever=int(data["lever"]),
+                margin_mode=data["mgnMode"],
+                margin=round(float(data["margin"]), 2),
+                notional=round(float(data["notionalUsd"]), 2),
+                unrealized_pnl=round(float(data["upl"]), 2),
+            )
+        except Exception as e:
+            return None
 
     def __repr__(self):
         return (

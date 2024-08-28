@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 from numba import njit
-from joblib import dump
 
 from trader.objects import Contract
 
@@ -37,9 +36,6 @@ class TradeSignalGenerator(ABC):
     must implement the `generate_signals` method, which takes an OHLCV dataframe and
     returns a series of trading signals.
     """
-
-    def save(self, filename):
-        dump(self, filename)
 
     @abstractmethod
     def generate_signals(self, **kwargs):
@@ -90,12 +86,6 @@ class TradeSignalGenerator(ABC):
     @property
     def strategy_kind(self):
         return self._strategy_kind
-
-    @property
-    def interval(self):
-        if self.resample == 60:
-            return "1H"
-        return str(self.resample) + "m"
 
     @classmethod
     def new(cls, **kwargs):

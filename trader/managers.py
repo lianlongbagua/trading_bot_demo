@@ -100,11 +100,12 @@ class SignalManager(LoggedClass):
         super().__init__(__name__)
         # organized by resample "bar_interval" key
         strategy_configs = config["strategies"]
+        self.combine_kind = config["combine_kind"]
         self.strategy_dict = asyncio.run(self.load_strategies(strategy_configs))
         strategy_len = sum(len(v) for v in self.strategy_dict.values())
         self.logger.info(f"Loaded {strategy_len} strategies")
 
-        self.final_signal = -0.1
+        self.final_signal = 0.0
 
     @staticmethod
     async def _load_sg(name, params):
@@ -140,8 +141,11 @@ class SignalManager(LoggedClass):
         return sg.generate_signals(data)[-1]
 
     @staticmethod
-    def combine_signals(signals):
-        return sum(signals) / len(signals) if signals else 0
+    def combine_signals(signals, combine_kind):
+        if combine_kind == "sum":
+            return sum(signals) / len(signals) if signals else 0
+        if combine_kind == "vote":
+            return sum(signals) / abs(sum(signals)) if abs(sum(signals)) > 0 else 0
 
     async def generate_signals(self, contracts):
         signals = []
@@ -154,7 +158,8 @@ class SignalManager(LoggedClass):
                     tasks.append(self._gen_signal(sg, contract))
 
         signals = await asyncio.gather(*tasks)
-        new_signal = self.combine_signals(signals)
+        print(signals)
+        new_signal = self.combine_signals(signals, self.combine_kind)
         signal_changed = self.signal_has_changed(new_signal)
         self.final_signal = new_signal
         self.logger.info(f"Final Signal: {self.final_signal}")
@@ -232,9 +237,7 @@ class PositionManager(LoggedClass):
                 instId=self.symbol, posSide="net", type="reduce", amt=str(amt)
             )
             if result.get("code") != "0":
-                self.logger.error(
-                    f"Failed to reduce margin by {amt} - {result['data'][0]['sMsg']}"
-                )
+                self.logger.error(f"Failed to reduce margin by {amt} - {result['msg']}")
             else:
                 self.logger.warning(f"Reduced margin by {amt}")
 
@@ -252,7 +255,7 @@ class PositionManager(LoggedClass):
                 result, "Failed to set leverage", f"Set leverage to {self.target_lever}"
             )
 
-        if abs(qty_diff) > 0.1:
+        if abs(qty_diff) > 1:
             sz = str(abs(round(qty_diff, 1)))
             result = self.gateway.place_order(
                 instId=self.symbol,

@@ -35,6 +35,8 @@ class TradingSystem(LoggedClass):
 
         self.push_url = os.environ.get("PUSH_URL")
 
+        self.first_run = True
+
     def initialize_gateway(self) -> gateways.BaseGateway:
         gateway_type = self.configs.get("gateway")
         if gateway_type == "OKX":
@@ -58,6 +60,13 @@ class TradingSystem(LoggedClass):
         posdata = posdata[0]
         if posdata:
             self.logger.warning(f"Position: {posdata}")
+            self.logger.warning(
+                f"actual notional = {posdata.notional}, target = {round(self.pos_man.target_notional, 2)}"
+            )
+            self.logger.warning(
+                f"actual lever = {posdata.lever}, target = {self.pos_man.target_lever}"
+            )
+
             utils.push_to_device(
                 self.push_url,
                 "OKX Bot Confirm Position",
@@ -92,6 +101,9 @@ class TradingSystem(LoggedClass):
         await asyncio.gather(*tasks)
 
         signal_changed = await self.sig_man.generate_signals(self.data_man.contracts)
+        if self.first_run:
+            signal_changed = True
+            self.first_run = False
 
         # if signal has changed, execute
         if signal_changed:
@@ -120,8 +132,9 @@ class TradingSystem(LoggedClass):
                 await asyncio.sleep(sleep_seconds)
                 await self.job()
         except Exception as e:
-            self.logger.error(f"Error in main loop: {str(e)}")
-            utils.push_to_device(self.push_url, "OKX Bot Error", f"{str(e)}")
+            self.logger.critical(f"Error in main loop: {str(e)}")
+            utils.push_to_device(self.push_url, "OKX Bot Critical Error", f"{str(e)}")
+            raise e
 
     def start(self):
         asyncio.run(self.run())

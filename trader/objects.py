@@ -14,6 +14,7 @@ class OrderData:
     order_id: str
     order_type: str
     order_status: str
+    pnl: float
     lever: int
 
     @classmethod
@@ -28,13 +29,14 @@ class OrderData:
             order_status=data["state"],
             lever=int(data["lever"]),
             fill_time=data["fillTime"],
+            pnl=float(data["pnl"]),
         )
 
     def __repr__(self):
         return (
             f"symbol={self.symbol}, side={self.side}, fill_price={self.fill_price}, qty={self.qty}, "
             f"order_id={self.order_id}, order_type={self.order_type}, order_status={self.order_status}, "
-            f"lever={self.lever}, fill_time={self.fill_time}"
+            f"lever={self.lever}, pnl={self.pnl}, fill_time={self.fill_time}"
         )
 
 

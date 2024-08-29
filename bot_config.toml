@@ -6,7 +6,7 @@ combine_kind = "vote"
 max_risk = 100
 bar_interval = 60
 atr_period = 12
-tol = 2
+tol = 1.5
 
 [instrument]
 # The price on which pnl & position is calculated

@@ -158,7 +158,7 @@ class SignalManager(LoggedClass):
                     tasks.append(self._gen_signal(sg, contract))
 
         signals = await asyncio.gather(*tasks)
-        print(signals)
+        self.logger.info(f"Signals: {signals}")
         new_signal = self.combine_signals(signals, self.combine_kind)
         signal_changed = self.signal_has_changed(new_signal)
         self.final_signal = new_signal
@@ -230,8 +230,8 @@ class PositionManager(LoggedClass):
 
     def adjust_margin(self, current_posdata):
         margin = current_posdata.margin
-        if margin > self.max_risk * 1.5:
-            margin_diff = margin - self.max_risk * 1.5
+        if margin > self.max_risk * self.tol:
+            margin_diff = margin - self.max_risk * self.tol
             amt = int(margin_diff)
             result = self.gateway.adjust_margin(
                 instId=self.symbol, posSide="net", type="reduce", amt=str(amt)

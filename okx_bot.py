@@ -2,9 +2,9 @@
 
 import asyncio
 from datetime import datetime, timezone
-
 import os
 import time
+import sys
 
 from dotenv import load_dotenv
 
@@ -52,7 +52,7 @@ class TradingSystem(LoggedClass):
             utils.push_to_device(
                 self.push_url,
                 "OKX Bot Confirm Order",
-                f"{orderdata.order_status=}",
+                f"status={orderdata.order_status}, pnl={orderdata.pnl}",
             )
 
     async def confirm_pos(self):
@@ -61,9 +61,7 @@ class TradingSystem(LoggedClass):
         if posdata:
             self.logger.warning(f"Position: {posdata}")
             self.logger.warning(
-                f"actual notional = {posdata.notional}, target = {round(self.pos_man.target_notional, 2)}"
-            )
-            self.logger.warning(
+                f"actual notional = {posdata.notional}, target = {round(self.pos_man.target_notional, 2)}, "
                 f"actual lever = {posdata.lever}, target = {self.pos_man.target_lever}"
             )
 
@@ -141,6 +139,16 @@ class TradingSystem(LoggedClass):
 
 
 if __name__ == "__main__":
-    load_dotenv()
-    trading_system = TradingSystem("bot_config.toml")
-    trading_system.start()
+    lock_file = "okx_bot.lock"
+    if os.path.exists(lock_file):
+        sys.exit("Another instance is running")
+
+    with open(lock_file, "w") as f:
+        f.write("1")
+
+    try:  # to prevent the lock file from being left behind
+        load_dotenv()
+        trading_system = TradingSystem("bot_config.toml")
+        trading_system.start()
+    finally:
+        os.remove(lock_file)
